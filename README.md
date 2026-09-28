@@ -9,12 +9,14 @@
 | 路径 | 内容 |
 |---|---|
 | [`docs/PRD.md`](docs/PRD.md) | MVP 产品文档：目标用户、痛点、核心功能、运作流程、技术方案要点、验证假设 |
-| [`docs/prototype/`](docs/prototype/) | 可点击交互原型（单文件 HTML，零依赖，双击即可打开）与使用说明 |
+| [`docs/prototype/`](docs/prototype/) | 可交互原型的界面截图与使用说明（原型本体在仓库根 `index.html`） |
 | [`docs/poster/`](docs/poster/) | 产品手册海报（四联竖版）源文件、生成脚本与渲染图 |
 
 ## 原型试用
 
-用浏览器直接打开 [docs/prototype/TalkTally-prototype.html](docs/prototype/TalkTally-prototype.html)，不需要服务器。按 [docs/prototype/README.md](docs/prototype/README.md) 里的演示路径点击即可：本地规则解析、云端兜底与数据最小化、一句话拆两笔、口误纠正、关闭云端后的降级、流水与周报、导出。
+**在线（GitHub Pages）**：[https://microstonedev.github.io/TalkTally/](https://microstonedev.github.io/TalkTally/)
+
+**本地**：用浏览器直接打开仓库根目录的 `index.html`，不需要服务器。演示路径见 [docs/prototype/README.md](docs/prototype/README.md)。
 
 ## 三条核心决策
 

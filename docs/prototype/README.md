@@ -1,6 +1,10 @@
 # TalkTally v1.0 · 交互原型
 
-单文件、零依赖、离线可用的可点击原型。**直接双击 `TalkTally-prototype.html` 用浏览器打开即可**，不需要服务器、不需要构建。
+原型本体是单文件、零依赖、离线可用的 HTML。
+
+- **在线**：GitHub Pages 地址 [https://microstonedev.github.io/TalkTally/](https://microstonedev.github.io/TalkTally/)
+- **本地**：打开仓库根目录的 `index.html`，不需要服务器、不需要构建
+- **源码位置**：原型即仓库根目录的 `index.html`（为配合 GitHub Pages 直接作为站点首页，已从本目录移出）；本目录保留界面截图与使用说明
 
 ## 原型里有什么
 
@@ -36,5 +40,5 @@
 
 ## 文件
 
-- `TalkTally-prototype.html` — 原型本体（单文件）
+- `../../index.html` — 原型本体（单文件）
 - `screenshots/` — 五个关键界面截图（首页、云端解析卡片、流水、复盘、入账后的首页）
