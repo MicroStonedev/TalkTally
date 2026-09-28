@@ -188,14 +188,18 @@ body{
 .mbtn{width:34px;height:34px;border-radius:10px;background:var(--card);border:1px solid var(--line);color:var(--text);font-size:15px;cursor:pointer;font-family:inherit;transition:transform .08s}
 .mbtn:active{transform:scale(.92)}
 .mtitle{font-size:15px;font-weight:700;min-width:160px;text-align:center}
-/* 周对比柱状图 */
+/* 周对比柱状图（分类堆叠） */
 .chart{display:flex;align-items:stretch;gap:7px;height:120px}
 .bcol{flex:1;display:flex;flex-direction:column;align-items:center}
 .bval{font-size:9px;color:var(--muted);height:12px;line-height:12px}
 .bwrap{flex:1;width:100%;display:flex;align-items:flex-end;justify-content:center}
-.bbar{width:82%;background:#3E6C93;border-radius:5px 5px 0 0;min-height:2px}
-.bbar.cur{background:var(--accent)}
+.bbar{width:82%;background:#3E6C93;border-radius:5px 5px 0 0;min-height:2px;display:flex;flex-direction:column;overflow:hidden}
+.bbar .seg{width:100%;flex:none;min-height:2px}
 .blbl{font-size:9px;color:var(--muted);margin-top:5px}
+.blbl.cur{color:var(--accent);font-weight:700}
+.clegend{display:flex;flex-wrap:wrap;gap:5px 12px;margin-top:10px}
+.clegend .ci{display:flex;align-items:center;gap:5px;font-size:10px;color:var(--muted)}
+.clegend .ci i{width:8px;height:8px;border-radius:2px;flex:none}
 </style>
 </head>
 <body>
@@ -286,7 +290,8 @@ body{
           <button class="chip" data-c="max12">近12周最高</button>
         </div>
         <div class="chart" id="r-chart"></div>
-        <div class="small muted" style="margin-top:8px">近 8 周支出，橙色为当前所选周</div>
+        <div class="small muted" style="margin-top:8px">近 8 周支出，按分类堆叠，加粗周为当前所选周</div>
+        <div class="clegend" id="r-legend"></div>
       </div>
       <div class="card">
         <div style="font-size:14px;font-weight:700;margin-bottom:4px">分类构成</div>
@@ -375,8 +380,8 @@ body{
 <script>
 /* ==================== 数据与状态 ==================== */
 const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
-const CATS=["餐饮","交通","购物","日用","娱乐","居住","医疗","其他"];
-const CAT_DOT={"餐饮":"#F26B21","交通":"#5B9BD5","购物":"#C77DBB","日用":"#8FD3A6","娱乐":"#E8C468","居住":"#7A9CC6","医疗":"#D98A8A","其他":"#93A9BC"};
+const CATS=["餐饮","交通","购物","日用","娱乐","居住","医疗","学习","人情","通讯","旅行","宠物","其他"];
+const CAT_DOT={"餐饮":"#F26B21","交通":"#5B9BD5","购物":"#C77DBB","日用":"#8FD3A6","娱乐":"#E8C468","居住":"#7A9CC6","医疗":"#D98A8A","学习":"#9B8BD9","人情":"#E0899B","通讯":"#56C4C8","旅行":"#4FA890","宠物":"#B08968","其他":"#93A9BC"};
 const ACCOUNTS=["微信支付","支付宝","招行信用卡","现金"];
 const now=new Date();
 const d=(off=0,h=12,m=30)=>{const t=new Date(now);t.setDate(t.getDate()-off);t.setHours(h,m,0,0);return t.getTime();};
@@ -398,6 +403,10 @@ const store={
     {id:++uid,ts:d(4,13,55),amount:128, type:"expense",cat:"居住",acc:"招行信用卡",note:"水电燃气",src:"local"},
     {id:++uid,ts:d(5,16,20),amount:75,  type:"expense",cat:"购物",acc:"支付宝",  note:"袜子三双装",src:"local"},
     {id:++uid,ts:d(6,18,47),amount:33,  type:"expense",cat:"餐饮",acc:"微信支付",note:"奶茶+关东煮",src:"local"},
+    {id:++uid,ts:d(1,20,15),amount:59,  type:"expense",cat:"通讯",acc:"支付宝",  note:"手机话费充值",src:"local"},
+    {id:++uid,ts:d(2,14,6), amount:89,  type:"expense",cat:"学习",acc:"招行信用卡",note:"专业书两本",src:"cloud"},
+    {id:++uid,ts:d(3,19,30),amount:200, type:"expense",cat:"人情",acc:"微信支付",note:"同事结婚份子钱",src:"cloud"},
+    {id:++uid,ts:d(4,10,50),amount:45,  type:"expense",cat:"宠物",acc:"支付宝",  note:"猫粮一袋",src:"local"},
   ]
 };
 const fmt=n=>"¥"+(Math.round(n*100)/100).toFixed(2).replace(/\.00$/,"").replace(/(\.\d)0$/,"$1");
@@ -405,13 +414,18 @@ const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",
 
 /* ==================== 解析引擎（两层） ==================== */
 const RULES=[
-  {re:/星巴克|咖啡|奶茶/,cat:"餐饮",note:"咖啡 / 饮品"},
+  {re:/星巴克|咖啡|奶茶/,cat:"餐饮"},
   {re:/外卖|午饭|晚饭|早餐|吃|餐/,cat:"餐饮"},
-  {re:/打车|地铁|公交|滴滴/,cat:"交通"},
-  {re:/水|便利店|超市|纸巾/,cat:"日用"},
-  {re:/电影|游戏/,cat:"娱乐"},
+  {re:/机票|酒店|景点|旅行|民宿/,cat:"旅行"},
+  {re:/打车|地铁|公交|滴滴|火车|停车/,cat:"交通"},
+  {re:/书|课程|学费|培训|考试|文具/,cat:"学习"},
+  {re:/红包|礼物|请客|份子|人情/,cat:"人情"},
+  {re:/话费|流量|宽带|手机费/,cat:"通讯"},
+  {re:/猫|狗|宠物|猫粮|狗粮|疫苗/,cat:"宠物"},
+  {re:/水|便利店|超市|纸巾|洗|日用/,cat:"日用"},
+  {re:/电影|游戏|会员|演唱会/,cat:"娱乐"},
   {re:/房租|水电|燃气/,cat:"居住"},
-  {re:/药|医院/,cat:"医疗"},
+  {re:/药|医院|门诊/,cat:"医疗"},
 ];
 const numCN={"一":1,"二":2,"两":2,"三":3,"四":4,"五":5,"六":6,"七":7,"八":8,"九":9,"十":10};
 function pickAccount(t){if(/微信/.test(t))return "微信支付";if(/支付宝|花呗/.test(t))return "支付宝";if(/信用卡|刷卡/.test(t))return "招行信用卡";if(/现金/.test(t))return "现金";return "微信支付";}
@@ -551,7 +565,7 @@ function runParse(text){
     const t=r.target;
     sheet.innerHTML=`<div class="grab"></div>
       <div class="parse-head"><span class="ttl">口误纠正</span><span class="badge cloud">会话上下文</span></div>
-      <div class="min-note">已识别为对「刚才那笔」的修正：${esc(t.note)} → 金额改为 <b>${r.amount}</b>。</div>
+      <div class="min-note">已识别为对「刚才那笔」的修正：${esc(t.note)} → 金额改为 <b>${r.amount}</b>。<b>本次修改会追加到这笔的备注里，可随时追溯。</b></div>
       <div class="field"><label>金额</label><input class="f-amt" type="number" step="0.01" value="${r.amount}"></div>
       <div class="field"><label>备注</label><input class="f-note" value="${esc(t.note)}"></div>
       <div class="btn-row" style="margin-top:14px">
@@ -600,10 +614,20 @@ function confirmCard(src){
 }
 function confirmCorrection(id){
   const e=store.entries.find(x=>x.id===id); if(!e)return closeCard();
+  const oldAmt=e.amount, oldNote=e.note;
   const amt=parseFloat($("#card-sheet .f-amt").value);
-  if(!isNaN(amt))e.amount=amt;
-  const note=$("#card-sheet .f-note").value; if(note)e.note=note;
-  closeCard(); renderAll(); toast(`已修正「${esc(e.note)}」为 ${fmt(e.amount)}`);
+  const note=$("#card-sheet .f-note").value;
+  const changes=[];
+  if(!isNaN(amt)&&amt>0&&amt!==oldAmt){e.amount=amt;changes.push(`金额 ${fmt(oldAmt)}→${fmt(amt)}`);}
+  if(note&&note!==oldNote){e.note=note;changes.push(`备注「${oldNote}」→「${note}」`);}
+  if(changes.length){
+    const n=new Date();
+    const pad=v=>String(v).padStart(2,"0");
+    const stamp=`${pad(n.getMonth()+1)}-${pad(n.getDate())} ${pad(n.getHours())}:${pad(n.getMinutes())}`;
+    e.note=e.note+`｜语音修改：${changes.join("，")}（${stamp}）`;
+  }
+  closeCard(); renderAll();
+  toast(changes.length?`已修正，修改详情已写入备注`:`没有检测到改动`);
 }
 
 /* ==================== 渲染 ==================== */
@@ -701,21 +725,35 @@ function renderReport(){
   $("#r-bar").style.width=pct+"%";
   $("#r-budget-txt").textContent=`本月预算 ${fmt(store.budget)} · 已用 ${fmt(monthSpend)}`;
   $("#r-left").textContent=`剩余 ${fmt(Math.max(0,store.budget-monthSpend))}`;
-  /* 近 8 周柱状图 */
+  /* 近 8 周分类堆叠柱状图 */
   const bars=[];
-  for(let i=7;i>=0;i--){const [s,e]=weekBounds(weekOffset+i);bars.push({sum:weekSum(s,e),cur:i===0,label:"W"+isoWeek(s)});}
+  for(let i=7;i>=0;i--){
+    const [s,e]=weekBounds(weekOffset+i);
+    const weekExp=store.entries.filter(x=>x.ts>=s&&x.ts<e&&x.type==="expense");
+    const sum=weekExp.reduce((a,x)=>a+x.amount,0);
+    const cc={}; weekExp.forEach(x=>{cc[x.cat]=(cc[x.cat]||0)+x.amount;});
+    bars.push({sum,cats:cc,cur:i===0,label:"W"+isoWeek(s)});
+  }
   const max=Math.max(...bars.map(b=>b.sum),1);
-  $("#r-chart").innerHTML=bars.map(b=>`
+  $("#r-chart").innerHTML=bars.map(b=>{
+    const segs=Object.entries(b.cats).sort((a,c)=>c[1]-a[1]).map(([c,v])=>
+      `<div class="seg" style="height:${Math.max(2,Math.round(v/b.sum*100))}%;background:${CAT_DOT[c]||CAT_DOT["其他"]}"></div>`).join("");
+    return `
     <div class="bcol">
       <div class="bval">${b.sum?fmtShort(b.sum):""}</div>
-      <div class="bwrap"><div class="bbar ${b.cur?"cur":""}" style="height:${Math.max(2,Math.round(b.sum/max*100))}%"></div></div>
-      <div class="blbl">${b.label}</div>
-    </div>`).join("");
+      <div class="bwrap"><div class="bbar" style="height:${Math.max(2,Math.round(b.sum/max*100))}%">${segs}</div></div>
+      <div class="blbl ${b.cur?"cur":""}">${b.label}</div>
+    </div>`;
+  }).join("");
+  const legendCats=[...new Set(bars.flatMap(b=>Object.keys(b.cats)))];
+  $("#r-legend").innerHTML=legendCats.length
+    ? legendCats.map(c=>`<span class="ci"><i style="background:${CAT_DOT[c]||CAT_DOT["其他"]}"></i>${c}</span>`).join("")
+    : `<span class="ci">近 8 周暂无数据</span>`;
   /* 分类构成与 AI 建议（按所选周） */
   const week=store.entries.filter(e=>e.ts>=ws&&e.ts<we&&e.type==="expense");
   const cats={};
   week.forEach(e=>{cats[e.cat]=(cats[e.cat]||0)+e.amount;});
-  const top=Object.entries(cats).sort((a,b)=>b[1]-a[1]).slice(0,4);
+  const top=Object.entries(cats).sort((a,b)=>b[1]-a[1]).slice(0,5);
   const cmax=top.length?top[0][1]:1;
   $("#r-cats").innerHTML=top.length?top.map(([c,v])=>`
     <div class="catrow"><span class="cn">${c}</span><span class="cbar"><i style="width:${Math.round(v/cmax*100)}%;background:${CAT_DOT[c]}"></i></span><span class="cv">${fmt(v)}</span></div>`).join(""):'<div class="small muted">该周暂无支出</div>';
