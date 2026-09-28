@@ -943,7 +943,7 @@ const n0=new Date();
 $("#today-str").textContent=`${n0.getMonth()+1}月${n0.getDate()}日 · 周${"日一二三四五六"[n0.getDay()]}`;
 /* 话术 chips */
 const CHIPS=[{s:"星巴克咖啡38，微信支付",h:1},{s:"打车25"},{s:"买水5块，支付宝"},{s:"昨天外卖40，室友转我20",h:1},{s:"上个月花呗耳机分12期",h:1},{s:"超市买纸巾12块"},{s:"晚饭32，支付宝"},{s:"把刚才那笔改成32",h:1}];
-$("#chips").innerHTML='<span class="small muted" style="align-self:center;margin-right:2px">点击示例</span>'+
+$("#chips").innerHTML='<span class="small muted" style="align-self:center;margin-right:2px">点击示例：</span>'+
   CHIPS.map(c=>`<button class="chip ${c.h?"hot":""}" data-say="${esc(c.s)}">${esc(c.s)}</button>`).join("");
 renderAll();
 </script>
