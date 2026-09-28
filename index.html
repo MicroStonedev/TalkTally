@@ -128,6 +128,14 @@ body{
 .transcript .cur{display:inline-block;width:2px;height:20px;background:var(--accent);vertical-align:-3px;animation:blink .8s steps(1) infinite}
 @keyframes blink{50%{opacity:0}}
 .rec-hint{font-size:12px;color:var(--muted);line-height:1.7}
+.rec-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
+.rec-notice{
+  color:#FFC49A;background:rgba(242,107,33,.1);border:1px solid rgba(242,107,33,.35);
+  border-radius:11px;padding:9px 11px;line-height:1.6;margin:12px 0 4px;text-align:left;
+}
+.rec-actions{display:flex;gap:10px;margin-top:16px}
+.rec-actions .btn{flex:1}
+.rec-manual{margin-top:18px;padding-top:16px;border-top:1px solid var(--line);text-align:left}
 /* 解析卡片 */
 .parse-head{display:flex;align-items:center;gap:8px;margin-bottom:4px}
 .parse-head .ttl{font-size:17px;font-weight:800;flex:1}
@@ -207,7 +215,7 @@ body{
 <!-- ============ 桌面说明栏 ============ -->
 <aside class="info">
   <h1>TalkTally<span>.</span></h1>
-  <div class="sub">语音记账 · v1.0 交互原型<br>原型为可点击演示：点击手机里的话术即可模拟“说一句话记账”。数据仅存于本页内存，刷新后还原为示例账本。</div>
+  <div class="sub">语音记账 · v1.0 交互原型<br>首页的橙色话筒按钮是<b>真实语音输入</b>（浏览器语音识别，首次使用需允许麦克风权限），识别文字实时显示；话术 chip 是无麦克风时的演示通道。数据仅存于本页内存，刷新后还原为示例账本。</div>
   <div class="block">
     <b>两层解析（本原型已实现规则）</b>
     <p>「星巴克 38」等高频句走<strong>本地规则</strong>：零延迟、离线可用、结果可复现；「室友转我 20」等长尾句才触发<strong>云端兜底</strong>。</p>
@@ -363,9 +371,25 @@ body{
       <div class="sheet">
         <div class="grab"></div>
         <div class="rec-wrap">
+          <div class="rec-top">
+            <span class="badge local" id="rec-status">聆听中</span>
+            <span class="lat" id="rec-timer">00:00</span>
+          </div>
           <div class="wave" id="wave"></div>
-          <div class="transcript" id="transcript"><span class="cur"></span></div>
-          <div class="rec-hint">松手入账 · 上滑取消<br>识别在本机完成，音频不出设备</div>
+          <div class="transcript" id="transcript"><span class="muted">正在聆听，请说话…</span></div>
+          <div class="rec-hint" id="rec-hint">松手入账 · 快速点按可连续说话</div>
+          <div class="rec-notice small" id="rec-notice" style="display:none"></div>
+          <div class="rec-actions">
+            <button class="btn ghost sm" id="rec-cancel">取消</button>
+            <button class="btn sm" id="rec-stop">停止并识别</button>
+          </div>
+          <div class="rec-manual">
+            <div class="field" style="margin-bottom:8px">
+              <label>无法录音？直接输入这句话</label>
+              <input id="rec-manual-input" placeholder="例如：打车25">
+            </div>
+            <button class="btn ghost sm" style="width:100%" id="rec-manual-go">按输入的入账</button>
+          </div>
         </div>
       </div>
     </div>
@@ -485,21 +509,124 @@ function parse(text){
   return {kind:"entries",items:parseCloud(t),src:"cloud",latency:486};
 }
 
-/* ==================== 录音流程 ==================== */
-const SAMPLES=[
-  "星巴克咖啡38，微信支付","买水5块，支付宝","打车25","昨天外卖40，室友转我20",
-  "上个月花呗耳机分12期","超市买纸巾12块","晚饭32，支付宝","把刚才那笔改成32",
-];
-let holding=false,typeTimer=null;
+/* ==================== 语音输入流程 ==================== */
+const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+let holding=false, handsFree=false, holdStart=0, wantListening=false;
+let finalText="", interimText="", recSeconds=0, recTimerId=null, recog=null;
 $("#wave").innerHTML=Array.from({length:13},(_,i)=>
   `<i style="height:${8+((i*37)%40)}px;animation-delay:${i*0.09}s"></i>`).join("");
-function startHold(){
-  if(holding)return; holding=true;
-  $("#fab").classList.add("holding");
-  $("#ov-rec").classList.add("show");
-  const text=SAMPLES[Math.floor(Math.random()*SAMPLES.length)];
-  typeOut(text);
+const recPad=v=>String(v).padStart(2,"0");
+function setTranscript(){
+  const shown=(finalText+interimText).trim();
+  $("#transcript").innerHTML = shown
+    ? esc(shown)+'<span class="cur"></span>'
+    : '<span class="muted">正在聆听，请说话…</span>';
 }
+function setRecNotice(msg){ const n=$("#rec-notice"); n.textContent=msg; n.style.display=msg?"block":"none"; }
+function updateRecUi(){
+  $("#rec-status").textContent=handsFree?"连续聆听中":"聆听中";
+  $("#rec-hint").textContent=handsFree?"再次点击话筒或「停止并识别」结束":"松手入账 · 快速点按可连续说话";
+}
+function buildRecog(){
+  const r=new SR();
+  r.lang="zh-CN"; r.interimResults=true; r.continuous=true; r.maxAlternatives=1;
+  r.onresult=ev=>{
+    let fin="",inter="";
+    for(let i=0;i<ev.results.length;i++){
+      const res=ev.results[i];
+      if(res.isFinal)fin+=res[0].transcript; else inter+=res[0].transcript;
+    }
+    finalText=fin; interimText=inter; setTranscript();
+  };
+  r.onerror=ev=>{
+    const code=ev.error||"unknown";
+    if(code==="not-allowed"||code==="service-not-allowed"){
+      setRecNotice("麦克风权限未开启，无法录音。可用首页示例话术体验，或在下方直接输入。");
+      try{r.stop();}catch(e){}
+    }else{
+      setRecNotice("识别中断（"+code+"），可重试或在下方直接输入。");
+    }
+  };
+  r.onend=()=>{ if(wantListening){ try{r.start();}catch(e){} } };   // 静音超时自动续听
+  return r;
+}
+function ensureMic(){
+  if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia)return Promise.resolve(false);
+  return navigator.mediaDevices.getUserMedia({audio:true}).then(stream=>{
+    stream.getTracks().forEach(t=>t.stop());   // 仅用于获取权限，随即释放
+    return true;
+  }).catch(()=>false);
+}
+function openRec(demo){
+  $("#ov-rec").classList.add("show");
+  finalText=""; interimText=""; setTranscript(); setRecNotice("");
+  recSeconds=0; $("#rec-timer").textContent="00:00";
+  recTimerId=setInterval(()=>{
+    recSeconds++;
+    $("#rec-timer").textContent=recPad(Math.floor(recSeconds/60))+":"+recPad(recSeconds%60);
+  },1000);
+  if(demo)return;
+  wantListening=true;
+  if(!SR){
+    setRecNotice("当前浏览器不支持语音识别。可用首页示例话术体验，或在下方直接输入这句话。");
+    return;
+  }
+  setRecNotice("正在请求麦克风权限…");
+  ensureMic().then(ok=>{
+    if(!wantListening)return;                      // 期间已取消
+    if(!ok){ setRecNotice("麦克风权限未开启，无法录音。可用示例话术体验，或在下方直接输入。"); return; }
+    setRecNotice("");
+    try{
+      if(!recog)recog=buildRecog();
+      recog.start();
+    }catch(e){ setRecNotice("语音识别启动失败，可在下方直接输入。"); }
+  });
+  updateRecUi();
+}
+function closeRec(){
+  clearInterval(recTimerId); recTimerId=null;
+  wantListening=false;
+  try{ if(recog) recog.stop(); }catch(e){}
+  handsFree=false; holding=false;
+  $("#fab").classList.remove("holding");
+  $("#ov-rec").classList.remove("show");
+}
+function currentUtterance(){
+  const fromVars=(finalText+interimText).replace(/\s/g,"");
+  if(fromVars)return fromVars;
+  const el=$("#transcript").textContent.trim();
+  return el==="正在聆听，请说话…"?"":el;
+}
+function finishVoice(){
+  const text=currentUtterance();
+  closeRec();
+  if(text)runParse(text);
+  else toast("没有识别到内容，可用示例话术或直接输入");
+}
+const fab=$("#fab");
+fab.addEventListener("pointerdown",e=>{
+  e.preventDefault();
+  if(handsFree){finishVoice();return;}
+  holding=true; holdStart=Date.now();
+  openRec(false);
+});
+fab.addEventListener("pointerup",()=>{
+  if(!holding)return;
+  holding=false;
+  if(Date.now()-holdStart<350){ handsFree=true; updateRecUi(); }   // 轻点 → 连续聆听
+  else finishVoice();
+});
+fab.addEventListener("pointercancel",()=>{ if(holding){holding=false;finishVoice();} });
+fab.addEventListener("pointerleave",()=>{ if(holding){holding=false;finishVoice();} });
+$("#rec-stop").addEventListener("click",finishVoice);
+$("#rec-cancel").addEventListener("click",closeRec);
+$("#rec-manual-go").addEventListener("click",()=>{
+  const t=$("#rec-manual-input").value.trim();
+  if(!t){toast("先输入一句话");return;}
+  closeRec(); runParse(t);
+});
+/* chip 模拟说话（事件委托：chips 为动态注入；无麦克风时的演示通道） */
+let typeTimer=null;
 function typeOut(text){
   clearInterval(typeTimer);
   const el=$("#transcript"); let i=0;
@@ -510,23 +637,14 @@ function typeOut(text){
     if(i>=text.length)clearInterval(typeTimer);
   },55);
 }
-function endHold(){
-  if(!holding)return; holding=false;
-  clearInterval(typeTimer);
-  $("#fab").classList.remove("holding");
-  $("#ov-rec").classList.remove("show");
-  const text=$("#transcript").textContent.trim()||SAMPLES[0];
-  runParse(text);
-}
-const fab=$("#fab");
-fab.addEventListener("pointerdown",e=>{e.preventDefault();startHold();});
-["pointerup","pointercancel","pointerleave"].forEach(ev=>fab.addEventListener(ev,endHold));
-/* chip 模拟说话（事件委托：chips 为动态注入） */
 $("#chips").addEventListener("click",ev=>{
   const c=ev.target.closest(".chip"); if(!c)return;
   const t=c.dataset.say;
-  startHold(); typeOut(t);
-  setTimeout(endHold,900);
+  openRec(true);
+  $("#rec-status").textContent="演示回放";
+  $("#rec-hint").textContent="示例话术演示 · 真实录音请按话筒按钮";
+  typeOut(t);
+  setTimeout(()=>{ if($("#ov-rec").classList.contains("show"))finishVoice(); },700+t.length*55);
 });
 
 /* ==================== 解析卡片 ==================== */
