@@ -15,7 +15,7 @@ html,body{height:100%}
 body{
   background:radial-gradient(1200px 700px at 30% 20%, #123049 0%, #071523 60%, #050e17 100%);
   font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei","Segoe UI",sans-serif;
-  color:var(--text);display:flex;align-items:center;justify-content:center;gap:48px;min-height:100vh;padding:24px;
+  color:var(--text);display:flex;align-items:flex-start;justify-content:center;gap:48px;min-height:100vh;padding:24px;
 }
 /* ---------- 桌面说明栏 ---------- */
 .info{max-width:330px;display:none}
@@ -33,7 +33,7 @@ body{
 .phone{
   width:390px;height:844px;background:#040c14;border-radius:52px;
   border:1px solid #22405c;box-shadow:0 40px 90px rgba(0,0,0,.55),0 0 0 10px #0a1826;
-  position:relative;flex:none;
+  position:relative;flex:none;margin:auto;
 }
 .screen{position:absolute;inset:10px;background:var(--bg);border-radius:42px;overflow:hidden;display:flex;flex-direction:column}
 .statusbar{height:44px;display:flex;align-items:flex-end;justify-content:space-between;padding:0 26px 4px;font-size:13px;font-weight:600;flex:none}
@@ -183,6 +183,19 @@ body{
 .toast.show{opacity:1;transform:none}
 .kv{display:flex;justify-content:space-between;font-size:12.5px;padding:7px 0;color:var(--muted)}
 .kv b{color:var(--text);font-weight:600}
+/* 月份 / 周次切换 */
+.monthnav{display:flex;align-items:center;justify-content:center;gap:16px;margin-bottom:14px}
+.mbtn{width:34px;height:34px;border-radius:10px;background:var(--card);border:1px solid var(--line);color:var(--text);font-size:15px;cursor:pointer;font-family:inherit;transition:transform .08s}
+.mbtn:active{transform:scale(.92)}
+.mtitle{font-size:15px;font-weight:700;min-width:160px;text-align:center}
+/* 周对比柱状图 */
+.chart{display:flex;align-items:stretch;gap:7px;height:120px}
+.bcol{flex:1;display:flex;flex-direction:column;align-items:center}
+.bval{font-size:9px;color:var(--muted);height:12px;line-height:12px}
+.bwrap{flex:1;width:100%;display:flex;align-items:flex-end;justify-content:center}
+.bbar{width:82%;background:#3E6C93;border-radius:5px 5px 0 0;min-height:2px}
+.bbar.cur{background:var(--accent)}
+.blbl{font-size:9px;color:var(--muted);margin-top:5px}
 </style>
 </head>
 <body>
@@ -236,33 +249,53 @@ body{
 
     <!-- 流水 -->
     <div class="body" id="scr-ledger" style="display:none">
-      <div class="hd"><span class="t">流水</span><span class="s" id="l-month"></span></div>
+      <div class="hd"><span class="t">流水</span><span class="s" id="l-summary"></span></div>
+      <div class="monthnav">
+        <button class="mbtn" id="m-prev">‹</button>
+        <span class="mtitle" id="m-title">2026年9月</span>
+        <button class="mbtn" id="m-next">›</button>
+      </div>
       <div class="filter" id="l-filter">
         <button class="chip" data-f="all" style="border-color:var(--accent);color:#FFC49A">全部</button>
-        <button class="chip" data-f="local">本地规则</button>
-        <button class="chip" data-f="cloud">云端解析</button>
+        <button class="chip" data-f="expense">支出</button>
+        <button class="chip" data-f="income">收入</button>
       </div>
       <div id="l-list"></div>
     </div>
 
     <!-- 复盘 -->
     <div class="body" id="scr-report" style="display:none">
-      <div class="hd"><span class="t">复盘</span><span class="s">本周对比上周</span></div>
+      <div class="hd"><span class="t">复盘</span><span class="s">周报 · 周次切换 · 多周对比</span></div>
+      <div class="monthnav">
+        <button class="mbtn" id="w-prev">‹</button>
+        <span class="mtitle" id="w-title">本周</span>
+        <button class="mbtn" id="w-next">›</button>
+      </div>
       <div class="card">
-        <div class="small muted">本周支出</div>
+        <div class="small muted">该周支出</div>
         <div class="big" id="r-week">¥0</div>
         <div class="small" id="r-delta" style="margin-top:4px"></div>
         <div class="bar"><i id="r-bar" style="width:0%"></i></div>
         <div class="row small muted"><span id="r-budget-txt"></span><span id="r-left"></span></div>
       </div>
       <div class="card">
+        <div style="font-size:14px;font-weight:700;margin-bottom:10px">周对比</div>
+        <div class="filter" id="r-cmp">
+          <button class="chip" data-c="prev" style="border-color:var(--accent);color:#FFC49A">上周</button>
+          <button class="chip" data-c="avg4">近4周均值</button>
+          <button class="chip" data-c="max12">近12周最高</button>
+        </div>
+        <div class="chart" id="r-chart"></div>
+        <div class="small muted" style="margin-top:8px">近 8 周支出，橙色为当前所选周</div>
+      </div>
+      <div class="card">
         <div style="font-size:14px;font-weight:700;margin-bottom:4px">分类构成</div>
         <div id="r-cats"></div>
       </div>
       <div class="card">
-        <div style="font-size:14px;font-weight:700;margin-bottom:8px">本周周报</div>
+        <div style="font-size:14px;font-weight:700;margin-bottom:8px">AI 建议</div>
         <div class="quote" id="r-report"></div>
-        <div class="small muted" style="margin-top:8px;line-height:1.6">周报由云端基于聚合数字生成，未上传流水明细。</div>
+        <div class="small muted" style="margin-top:8px;line-height:1.6">建议由云端基于所选周的聚合数字生成，未上传流水明细。</div>
       </div>
     </div>
 
@@ -403,22 +436,22 @@ function parseLocal(t){
   if(amt===null)return null;
   if(t.length>18)return null;                       // 复杂句交给云端
   if(/室友|转我|AA|分期|期/.test(t))return null;     // 多笔/复杂语义交云端
-  return [{amount:amt,type:"expense",cat:pickCat(t),acc:pickAccount(t),note:pickNote(t,pickCat(t)),src:"local"}];
+  return [{amount:amt,type:"expense",cat:pickCat(t),acc:pickAccount(t),note:t,src:"local"}];
 }
 /* 云端兜底层（原型内置样本） */
 function parseCloud(t){
   if(/室友|转我|AA/.test(t)){
     const amt=extractAmount(t)||40, half=amt/2;
     return [
-      {amount:amt,type:"expense",cat:"餐饮",acc:"微信支付",note:"外卖（AA 总价）",src:"cloud"},
-      {amount:half,type:"income",cat:"收入",acc:"微信支付",note:"室友转来的饭钱",src:"cloud"},
+      {amount:amt,type:"expense",cat:"餐饮",acc:"微信支付",note:`外卖（AA 总价）｜${t}`,src:"cloud"},
+      {amount:half,type:"income",cat:"收入",acc:"微信支付",note:`室友转来的饭钱｜${t}`,src:"cloud"},
     ];
   }
   if(/分\s*\d+\s*期|分期/.test(t)){
-    return [{amount:199,type:"expense",cat:"购物",acc:"支付宝",note:"耳机 · 12 期（首期）",src:"cloud",v02:"分期计划 v0.2 支持，本笔按首期入账"}];
+    return [{amount:199,type:"expense",cat:"购物",acc:"支付宝",note:t,src:"cloud",v02:"分期计划 v0.2 支持，本笔按首期入账"}];
   }
   const amt=extractAmount(t)||0;
-  return [{amount:amt,type:"expense",cat:pickCat(t),acc:pickAccount(t),note:pickNote(t,pickCat(t)),src:"cloud"}];
+  return [{amount:amt,type:"expense",cat:pickCat(t),acc:pickAccount(t),note:t,src:"cloud"}];
 }
 /* 总入口 */
 function parse(text){
@@ -596,50 +629,99 @@ function renderHome(){
   const recent=[...store.entries].sort((a,b)=>b.ts-a.ts).slice(0,4);
   $("#h-recent").innerHTML=recent.length?recent.map(e=>entryRow(e)).join(""):'<div class="small muted" style="padding:8px 0">还没有记录，按住下方按钮说一句</div>';
 }
-let filter="all";
+/* ---- 流水：类型筛选 + 年月切换 ---- */
+let ltype="all";
+const nowD=new Date();
+let ledgerYM={y:nowD.getFullYear(),m:nowD.getMonth()};
 $$("#l-filter .chip").forEach(c=>c.addEventListener("click",()=>{
-  filter=c.dataset.f;
+  ltype=c.dataset.f;
   $$("#l-filter .chip").forEach(x=>{x.style.borderColor="";x.style.color="";});
   c.style.borderColor="var(--accent)";c.style.color="#FFC49A";
   renderLedger();
 }));
+$("#m-prev").addEventListener("click",()=>{ledgerYM.m--;if(ledgerYM.m<0){ledgerYM.m=11;ledgerYM.y--;}renderLedger();});
+$("#m-next").addEventListener("click",()=>{ledgerYM.m++;if(ledgerYM.m>11){ledgerYM.m=0;ledgerYM.y++;}renderLedger();});
+function inMonth(e){const d=new Date(e.ts);return d.getFullYear()===ledgerYM.y&&d.getMonth()===ledgerYM.m;}
 function renderLedger(){
-  const n=new Date();
-  $("#l-month").textContent=`${n.getFullYear()}年${n.getMonth()+1}月 · 共 ${store.entries.length} 笔`;
-  const list=[...store.entries].filter(e=>filter==="all"||e.src===filter).sort((a,b)=>b.ts-a.ts);
-  if(!list.length){$("#l-list").innerHTML='<div class="small muted" style="padding:20px 0">该筛选下暂无记录</div>';return;}
+  $("#m-title").textContent=`${ledgerYM.y}年${ledgerYM.m+1}月`;
+  const monthAll=store.entries.filter(inMonth);
+  const exp=monthAll.filter(e=>e.type==="expense").reduce((s,e)=>s+e.amount,0);
+  const inc=monthAll.filter(e=>e.type==="income").reduce((s,e)=>s+e.amount,0);
+  $("#l-summary").textContent=`${monthAll.length} 笔 · 支出 ${fmt(exp)} · 收入 ${fmt(inc)}`;
+  const list=[...monthAll].filter(e=>ltype==="all"||e.type===ltype).sort((a,b)=>b.ts-a.ts);
+  if(!list.length){
+    $("#l-list").innerHTML='<div class="small muted" style="padding:24px 2px;line-height:1.8">该月暂无记录<br>切换到其他月份，或回首页说一句记一笔。</div>';
+    return;
+  }
   const groups={};
   list.forEach(e=>{(groups[dayKey(e.ts)]=groups[dayKey(e.ts)]||[]).push(e);});
   $("#l-list").innerHTML=Object.entries(groups).map(([k,arr])=>{
-    const sum=arr.filter(e=>e.type==="expense").reduce((s,e)=>s+e.amount,0);
-    return `<div class="dayhead"><span>${k}</span><span>支出 ${fmt(sum)}</span></div>`+arr.map(e=>entryRow(e)).join("");
+    const eSum=arr.filter(e=>e.type==="expense").reduce((s,e)=>s+e.amount,0);
+    const iSum=arr.filter(e=>e.type==="income").reduce((s,e)=>s+e.amount,0);
+    const right=iSum>0?`支出 ${fmt(eSum)} · 收入 ${fmt(iSum)}`:`支出 ${fmt(eSum)}`;
+    return `<div class="dayhead"><span>${k}</span><span>${right}</span></div>`+arr.map(e=>entryRow(e)).join("");
   }).join("");
 }
+/* ---- 复盘：周次切换 + 多周对比 ---- */
+let weekOffset=0, cmpMode="prev";
+function weekStart(ts){const d=new Date(ts);const day=(d.getDay()+6)%7;const m=new Date(d);m.setDate(d.getDate()-day);m.setHours(0,0,0,0);return m.getTime();}
+function weekBounds(off){const s=weekStart(Date.now())-off*7*864e5;return [s,s+7*864e5];}
+function weekSum(s,e){return store.entries.filter(x=>x.ts>=s&&x.ts<e&&x.type==="expense").reduce((a,x)=>a+x.amount,0);}
+function isoWeek(ts){
+  const d=new Date(ts);const day=(d.getDay()+6)%7;d.setDate(d.getDate()-day+3);
+  const y0=new Date(d.getFullYear(),0,4);const dy=(d.getDay()+6)%7;y0.setDate(y0.getDate()-dy+3);
+  return 1+Math.round((d-y0)/864e5/7);
+}
+const fmtMD=ts=>{const d=new Date(ts);return `${d.getMonth()+1}/${d.getDate()}`;};
+const fmtShort=n=>n>=1000?(n/1000).toFixed(1)+"k":String(Math.round(n));
+$("#w-prev").addEventListener("click",()=>{weekOffset++;renderReport();});
+$("#w-next").addEventListener("click",()=>{if(weekOffset>0){weekOffset--;renderReport();}});
+$$("#r-cmp .chip").forEach(c=>c.addEventListener("click",()=>{
+  cmpMode=c.dataset.c;
+  $$("#r-cmp .chip").forEach(x=>{x.style.borderColor="";x.style.color="";});
+  c.style.borderColor="var(--accent)";c.style.color="#FFC49A";
+  renderReport();
+}));
 function renderReport(){
-  const week=store.entries.filter(e=>Date.now()-e.ts<7*864e5&&e.type==="expense");
-  const prev=store.entries.filter(e=>{const x=Date.now()-e.ts;return x>=7*864e5&&x<14*864e5&&e.type==="expense";});
-  const wsum=week.reduce((s,e)=>s+e.amount,0), psum=prev.reduce((s,e)=>s+e.amount,0);
-  const hasPrev=prev.length>0;
+  const [ws,we]=weekBounds(weekOffset);
+  const wsum=weekSum(ws,we);
+  $("#w-title").textContent=`第 ${isoWeek(ws)} 周 · ${fmtMD(ws)}-${fmtMD(we-864e5)}`+(weekOffset===0?"（本周）":"");
   $("#r-week").innerHTML=fmt(wsum);
-  $("#r-delta").innerHTML=hasPrev
-    ? `较上周 <b style="color:${wsum>psum?"#FFC49A":"#8FD3A6"}">${wsum>psum?"+":""}${Math.round((wsum-psum)/psum*100)}%</b> <span class="muted">（上周 ${fmt(psum)}）</span>`
-    : `<span class="muted">上周暂无数据 · 这是第一个记账周</span>`;
-  const monthSpend=store.entries.filter(e=>{const x=new Date(e.ts);return x.getMonth()===new Date().getMonth()&&e.type==="expense";}).reduce((s,e)=>s+e.amount,0);
+  /* 对比基准 */
+  let base=0,baseLabel="上周";
+  if(cmpMode==="prev"){const [ps,pe]=weekBounds(weekOffset+1);base=weekSum(ps,pe);}
+  else if(cmpMode==="avg4"){let t=0;for(let i=1;i<=4;i++){const [s,e]=weekBounds(weekOffset+i);t+=weekSum(s,e);}base=t/4;baseLabel="近4周均值";}
+  else{for(let i=1;i<=12;i++){const [s,e]=weekBounds(weekOffset+i);base=Math.max(base,weekSum(s,e));}baseLabel="近12周最高";}
+  $("#r-delta").innerHTML=base>0
+    ? `较${baseLabel} <b style="color:${wsum>base?"#FFC49A":"#8FD3A6"}">${wsum>base?"+":""}${Math.round((wsum-base)/base*100)}%</b> <span class="muted">（${baseLabel} ${fmt(base)}）</span>`
+    : `<span class="muted">${baseLabel}暂无数据，先记满几周再看对比</span>`;
+  /* 月预算（始终按当前月） */
+  const monthSpend=store.entries.filter(e=>{const x=new Date(e.ts);return x.getMonth()===new Date().getMonth()&&x.getFullYear()===new Date().getFullYear()&&e.type==="expense";}).reduce((s,e)=>s+e.amount,0);
   const pct=Math.min(100,Math.round(monthSpend/store.budget*100));
   $("#r-bar").style.width=pct+"%";
   $("#r-budget-txt").textContent=`本月预算 ${fmt(store.budget)} · 已用 ${fmt(monthSpend)}`;
   $("#r-left").textContent=`剩余 ${fmt(Math.max(0,store.budget-monthSpend))}`;
+  /* 近 8 周柱状图 */
+  const bars=[];
+  for(let i=7;i>=0;i--){const [s,e]=weekBounds(weekOffset+i);bars.push({sum:weekSum(s,e),cur:i===0,label:"W"+isoWeek(s)});}
+  const max=Math.max(...bars.map(b=>b.sum),1);
+  $("#r-chart").innerHTML=bars.map(b=>`
+    <div class="bcol">
+      <div class="bval">${b.sum?fmtShort(b.sum):""}</div>
+      <div class="bwrap"><div class="bbar ${b.cur?"cur":""}" style="height:${Math.max(2,Math.round(b.sum/max*100))}%"></div></div>
+      <div class="blbl">${b.label}</div>
+    </div>`).join("");
+  /* 分类构成与 AI 建议（按所选周） */
+  const week=store.entries.filter(e=>e.ts>=ws&&e.ts<we&&e.type==="expense");
   const cats={};
-  week.forEach(e=>{if(e.type==="expense")cats[e.cat]=(cats[e.cat]||0)+e.amount;});
+  week.forEach(e=>{cats[e.cat]=(cats[e.cat]||0)+e.amount;});
   const top=Object.entries(cats).sort((a,b)=>b[1]-a[1]).slice(0,4);
-  const max=top.length?top[0][1]:1;
+  const cmax=top.length?top[0][1]:1;
   $("#r-cats").innerHTML=top.length?top.map(([c,v])=>`
-    <div class="catrow"><span class="cn">${c}</span><span class="cbar"><i style="width:${Math.round(v/max*100)}%;background:${CAT_DOT[c]}"></i></span><span class="cv">${fmt(v)}</span></div>`).join(""):'<div class="small muted">本周暂无数据</div>';
+    <div class="catrow"><span class="cn">${c}</span><span class="cbar"><i style="width:${Math.round(v/cmax*100)}%;background:${CAT_DOT[c]}"></i></span><span class="cv">${fmt(v)}</span></div>`).join(""):'<div class="small muted">该周暂无支出</div>';
   $("#r-report").textContent=top.length
-    ? hasPrev
-      ? `本周 ${top[0][0]}花了 ${fmt(top[0][1])}，占支出 ${Math.round(top[0][1]/wsum*100)}%，比上周多 ${fmt(Math.max(0,wsum-psum))}。下周先把${top[0][0]==="餐饮"?"外卖次数减半":"大额非必需支出列进清单"}，预计可省 ${fmt(Math.max(0,wsum-psum)*0.4)}。`
-      : `本周 ${top[0][0]}花了 ${fmt(top[0][1])}，占支出 ${Math.round(top[0][1]/wsum*100)}%，是最大的一项。下周先盯住它，看看能降多少。`
-    : "本周还没有支出记录，说一句话就能开始。";
+    ? `第 ${isoWeek(ws)} 周（${fmtMD(ws)}-${fmtMD(we-864e5)}）${top[0][0]}花了 ${fmt(top[0][1])}，占支出 ${Math.round(top[0][1]/wsum*100)}%，是最大的一项。${base>0?`较${baseLabel}${wsum>base?"多":"少"} ${fmt(Math.abs(wsum-base))}。`:""}下周先把${top[0][0]==="餐饮"?"外卖和咖啡次数减半":"大额非必需支出列进清单"}，预计可省 ${fmt(top[0][1]*0.3)}。`
+    : `第 ${isoWeek(ws)} 周（${fmtMD(ws)}-${fmtMD(we-864e5)}）没有支出记录。`;
 }
 function renderSettings(){
   $("#sw-cloud").classList.toggle("on",store.cloud);
