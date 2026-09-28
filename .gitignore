@@ -1,0 +1,12 @@
+# ZCode 工作区工具产物
+.video_agent/
+# ZCode 本地文件搜索配置
+.zcodeignore
+
+# Python
+__pycache__/
+*.pyc
+# 系统垃圾
+.DS_Store
+Thumbs.db
+desktop.ini
